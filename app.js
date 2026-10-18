@@ -18,7 +18,8 @@ function parseSpoken(){
  const raw=$('transcript').value.trim();
  if(!raw){showToast('Bitte erst etwas einsprechen oder eintippen.');return}
  const lower=raw.toLocaleLowerCase('de-DE');
- let date=$('date').value||todayISO();
+ // Keep the selected form/calendar date unless the text explicitly names another date.
+ let date=$('date').value||selectedCalendarDate||todayISO();
  if(/\bgestern\b/.test(lower)){const d=new Date();d.setDate(d.getDate()-1);date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
  else {const dm=lower.match(/(?:am\s+)?(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?/);if(dm){const y=dm[3]?(dm[3].length===2?'20'+dm[3]:dm[3]):String(new Date().getFullYear());date=`${y}-${String(dm[2]).padStart(2,'0')}-${String(dm[1]).padStart(2,'0')}`}}
  // Normalize spoken German time phrases to a stable numeric form.
@@ -73,7 +74,7 @@ function parseSpoken(){
    }
  }
  if(loc)$('location').value=loc;
- $('date').value=date;$('transcript').value=raw;updateCalc();showToast('Text ausgewertet – bitte erkannte Angaben kontrollieren.');
+ $('date').value=date;selectedCalendarDate=date;$('monthPicker').value=date.slice(0,7);$('transcript').value=raw;renderCalendar();updateCalc();showToast('Text ausgewertet – bitte erkannte Angaben kontrollieren.');
 }
 function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$('voiceStatus').textContent='Bitte iPhone-Tastatur-Diktat nutzen';$('voiceHint').textContent='Tippe ins Textfeld und dann auf das Mikrofon unten auf der iPhone-Tastatur. Die direkte Mikrofonfunktion wird von diesem Browser nicht unterstützt.';$('transcript').focus();showToast('Direkte Spracheingabe nicht verfügbar. Nutze das Mikrofon der iPhone-Tastatur.');return}if(recognition){try{recognition.stop()}catch(e){}return}recognition=new SR();recognition.lang='de-DE';recognition.interimResults=true;recognition.continuous=false;$('micBtn').classList.add('listening');$('micBtn').textContent='■ Aufnahme stoppen';$('voiceStatus').textContent='Direkte Spracheingabe läuft …';let result='';recognition.onresult=e=>{result=Array.from(e.results).map(r=>r[0].transcript).join(' ');$('transcript').value=result};recognition.onerror=e=>{const msg=e&&e.error==='not-allowed'?'Mikrofonzugriff verweigert. Bitte nutze das iPhone-Tastatur-Mikrofon.':'Mikrofon nicht verfügbar. Bitte nutze das iPhone-Tastatur-Mikrofon.';$('voiceStatus').textContent='Diktat über die Tastatur empfohlen';$('voiceHint').textContent=msg;showToast(msg)};recognition.onend=()=>{$('micBtn').classList.remove('listening');$('micBtn').textContent='🎙 Direkt sprechen';$('voiceStatus').textContent=result?'Diktat aufgenommen – Angaben übernehmen':'Feierabendbericht diktieren';recognition=null;if(result){$('transcript').value=result;$('transcript').focus()}};try{recognition.start()}catch(e){recognition=null;$('micBtn').classList.remove('listening');$('micBtn').textContent='🎙 Direkt sprechen';$('voiceStatus').textContent='Bitte iPhone-Tastatur-Diktat nutzen';showToast('Mikrofon konnte nicht gestartet werden. Nutze das Tastatur-Mikrofon.')}}
 function openSettings(){const s=state.settings;$('settingTarget').value=s.targetHours;$('settingThreshold1').value=s.threshold1;$('settingBreak1').value=s.break1;$('settingThreshold2').value=s.threshold2;$('settingBreak2').value=s.break2;$('settingsDialog').showModal()}
