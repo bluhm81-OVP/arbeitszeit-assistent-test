@@ -21,7 +21,13 @@ function parseSpoken(){
  // Keep the selected form/calendar date unless the text explicitly names another date.
  let date=$('date').value||selectedCalendarDate||todayISO();
  if(/\bgestern\b/.test(lower)){const d=new Date();d.setDate(d.getDate()-1);date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
- else {const dm=lower.match(/(?:am\s+)?(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?/);if(dm){const y=dm[3]?(dm[3].length===2?'20'+dm[3]:dm[3]):String(new Date().getFullYear());date=`${y}-${String(dm[2]).padStart(2,'0')}-${String(dm[1]).padStart(2,'0')}`}}
+ else {
+   const namedMonths={januar:1,jan:1,februar:2,feb:2,maerz:3,'märz':3,mar:3,april:4,apr:4,mai:5,juni:6,jun:6,juli:7,jul:7,august:8,aug:8,september:9,sep:9,oktober:10,okt:10,november:11,nov:11,dezember:12,dez:12};
+   const named=lower.match(/\b(?:am\s+)?(\d{1,2})\.?\s+(januar|jan|februar|feb|maerz|märz|mar|april|apr|mai|juni|jun|juli|jul|august|aug|september|sep|oktober|okt|november|nov|dezember|dez)(?:\s+(20\d{2}|\d{2}))?\b/);
+   const numeric=lower.match(/(?:am\s+)?(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?/);
+   if(named){const y=named[3]?(named[3].length===2?'20'+named[3]:named[3]):String(new Date().getFullYear());date=`${y}-${String(namedMonths[named[2]]).padStart(2,'0')}-${String(named[1]).padStart(2,'0')}`}
+   else if(numeric){const y=numeric[3]?(numeric[3].length===2?'20'+numeric[3]:numeric[3]):String(new Date().getFullYear());date=`${y}-${String(numeric[2]).padStart(2,'0')}-${String(numeric[1]).padStart(2,'0')}`}
+ }
  // Normalize spoken German time phrases to a stable numeric form.
  let text=lower.replace(/[–—]/g,'-').replace(/\bhalb\s+fünf\b/g,'16:30').replace(/\bhalb\s+vier\b/g,'15:30').replace(/\bhalb\s+drei\b/g,'14:30').replace(/\bhalb\s+sechs\b/g,'17:30').replace(/\bhalb\s+acht\b/g,'07:30').replace(/\bhalb\s+sieben\b/g,'06:30');
  const nums={eins:'1',ein:'1',eine:'1',einen:'1',zwei:'2',drei:'3',vier:'4',fünf:'5',sechs:'6',sieben:'7',acht:'8',neun:'9',zehn:'10',elf:'11',zwölf:'12'};
@@ -67,7 +73,12 @@ function parseSpoken(){
  if(prep)loc=prep[1].replace(/\s+(?:und|heute)$/i,'');
  if(!loc){
    const parts=raw.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
-   for(const part of parts){
+   // With date/time, location, task separated by commas, use the middle segment as the location.
+   if(parts.length>=3){
+     const candidate=parts[parts.length-2].replace(/\b(?:von|bis|uhr|heute|gestern|arbeitszeit|gearbeitet|in|bei|nach)\b/ig,' ').replace(/\b\d{1,2}(?::\d{2})?\b/g,' ').replace(/[.!?]/g,' ').replace(/\s+/g,' ').trim();
+     if(candidate && /^[\p{L}-]+(?:\s+[\p{L}-]+){0,2}$/u.test(candidate) && !/^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|sieben|acht|neun|zehn)$/i.test(candidate)) loc=candidate.split(/\s+/).map(w=>w.charAt(0).toLocaleUpperCase('de-DE')+w.slice(1)).join(' ');
+   }
+   for(const part of (loc?[]:parts)){
      let clean=part.toLocaleLowerCase('de-DE').replace(/\b(?:von|bis|uhr|heute|gestern|arbeitszeit|gearbeitet|in|bei|nach)\b/g,' ').replace(/\b\d{1,2}(?::\d{2})?\b/g,' ').replace(/[.!?]/g,' ').replace(/\s+/g,' ').trim();
      for(const hint of taskHints)clean=clean.replace(new RegExp(hint.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig'),' ').replace(/\s+/g,' ').trim();
      if(/^[a-zäöüß-]+(?:\s+[a-zäöüß-]+){0,2}$/i.test(clean)&&clean&&!/^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|heute|gestern|sieben|acht|neun|zehn)$/i.test(clean)){loc=clean.split(/\s+/).map(w=>w.charAt(0).toLocaleUpperCase('de-DE')+w.slice(1)).join(' ');break}
