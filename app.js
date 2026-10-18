@@ -18,7 +18,7 @@ function parseSpoken(){
  const raw=$('transcript').value.trim();
  if(!raw){showToast('Bitte erst etwas einsprechen oder eintippen.');return}
  const lower=raw.toLocaleLowerCase('de-DE');
- let date=todayISO();
+ let date=$('date').value||todayISO();
  if(/\bgestern\b/.test(lower)){const d=new Date();d.setDate(d.getDate()-1);date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
  else {const dm=lower.match(/(?:am\s+)?(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?/);if(dm){const y=dm[3]?(dm[3].length===2?'20'+dm[3]:dm[3]):String(new Date().getFullYear());date=`${y}-${String(dm[2]).padStart(2,'0')}-${String(dm[1]).padStart(2,'0')}`}}
  // Normalize spoken German time phrases to a stable numeric form.
