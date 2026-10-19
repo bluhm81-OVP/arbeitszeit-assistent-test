@@ -69,3 +69,16 @@ textarea,.form-card input,.settings input,dialog input{background:#141c18;color:
 
 .quick-stats.two{grid-template-columns:repeat(2,minmax(0,1fr));margin:-16px 0 28px}
 .quick-stats.two .stat small{white-space:normal}
+
+/* v0.15 Tabs + Willkommen */
+body{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:15;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#fff;border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+.tabbar button{border:0;background:transparent;color:var(--muted);font-size:11px;font-weight:700;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:12px}
+.tabbar button i{font-style:normal;font-size:20px;line-height:1}
+.tabbar button.active{color:var(--green);background:var(--mint)}
+#toast{bottom:calc(92px + env(safe-area-inset-bottom))}
+#settingState{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:16px;background:#fbfcfb;color:var(--ink)}
+#welcomeText{margin:8px 0 0;max-width:260px}
+@media print{.tabbar{display:none!important}}
+@media screen and (prefers-color-scheme:dark){.tabbar{background:#1a241f}.tabbar button.active{color:#6fcf9f;background:#1f3a2e}#settingState{background:#141c18;color:var(--ink);border-color:#2f3d35}}
+dialog input:not([type=file]){width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:16px;background:#fbfcfb;color:var(--ink)}
