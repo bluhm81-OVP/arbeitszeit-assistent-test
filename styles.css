@@ -99,3 +99,13 @@ dialog input:not([type=file]),dialog select{color:#fff!important;border-color:#5
 dialog .btn-quiet{color:#f4f8f5!important}
 }
 dialog input::placeholder{color:#6b756f!important;opacity:1}
+/* v0.18.2 Dunkelmodus: Felder in Einstellungen */
+@media screen and (prefers-color-scheme:dark){
+dialog input:not([type=file]),dialog select,dialog input[type=text],dialog input[type=number]{background:#0f1612!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#5a6e62!important}
+dialog input::placeholder{color:#9aa89f!important;-webkit-text-fill-color:#9aa89f!important}
+dialog{background:#1a241f!important}
+}
+@media screen and (prefers-color-scheme:light){
+dialog input:not([type=file]),dialog select{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important}
+}
+@media screen and (prefers-color-scheme:light){dialog input::placeholder{color:#6b756f!important;-webkit-text-fill-color:#6b756f!important}}
