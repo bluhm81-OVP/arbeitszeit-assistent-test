@@ -82,3 +82,6 @@ body{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
 @media print{.tabbar{display:none!important}}
 @media screen and (prefers-color-scheme:dark){.tabbar{background:#1a241f}.tabbar button.active{color:#6fcf9f;background:#1f3a2e}#settingState{background:#141c18;color:var(--ink);border-color:#2f3d35}}
 dialog input:not([type=file]){width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:16px;background:#fbfcfb;color:var(--ink)}
+
+.tabbar{grid-template-columns:repeat(3,minmax(0,1fr))}.tabbar button{touch-action:manipulation;cursor:pointer}
+.verwarn{background:#b54848;color:#fff;padding:10px 14px;font-size:13px;font-weight:700;text-align:center}
