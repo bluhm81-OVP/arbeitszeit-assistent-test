@@ -11,81 +11,76 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function readForm(){return {id:editingId||crypto.randomUUID(),date:$('date').value,start:$('start').value,end:$('end').value,location:$('location').value.trim(),task:$('task').value.trim(),pauseOverride:$('pauseOverride').value===''?null:Number($('pauseOverride').value),updatedAt:new Date().toISOString()}}
 function updateCalc(){const e=readForm(),c=calc(e);$('pauseValue').textContent=`${fmtMinutes(c.pause)} h`;$('pauseExplanation').textContent=c.valid?`${fmtMinutes(c.gross)} Anwesenheit minus ${fmtMinutes(c.pause)} ${e.pauseOverride!==null&&e.pauseOverride!==undefined&&e.pauseOverride!==''?'manuell eingestellte Pause':'automatischer Abzug'}`:'Beginn und Ende eingeben.';$('pauseTitle').textContent=e.pauseOverride!==null&&e.pauseOverride!==undefined&&e.pauseOverride!==''?'Pausenabzug (manuell)':'Automatischer Pausenabzug';$('netHours').textContent=`${fmtMinutes(c.net)} h`;$('dayDelta').textContent=signed(c.delta);$('dayDelta').className=c.delta<0?'negative':'positive'}
 function fillForm(e){editingId=e.id;$('date').value=e.date;$('start').value=e.start;$('end').value=e.end;$('location').value=e.location||'';$('task').value=e.task||'';$('pauseOverride').value=e.pauseOverride===undefined||e.pauseOverride===null?'':String(e.pauseOverride);$('formTitle').textContent='Eintrag bearbeiten';$('saveBtn').textContent='Änderungen speichern';$('deleteBtn').classList.remove('hidden');updateCalc();document.querySelector('.form-card').scrollIntoView({behavior:'smooth',block:'start'})}
-function resetForm(date=todayISO()){editingId=null;selectedCalendarDate=date;$('date').value=date;$('start').value='07:00';$('end').value='16:00';$('location').value='';$('task').value='';$('pauseOverride').value='';$('formTitle').textContent='Neuer Tag';$('saveBtn').textContent='Eintrag speichern';$('deleteBtn').classList.add('hidden');updateCalc()}
-function saveEntry(){const selectedDate=$('date').value;const e=readForm();e.date=selectedDate;const c=calc(e);if(!e.date||!c.valid){showToast('Bitte Datum, Beginn und Ende prüfen.');return}if(!e.location||!e.task){showToast('Bitte Ort und Tätigkeit ergänzen.');return}if(c.gross===0){showToast('Beginn und Ende ergeben keine Arbeitszeit.');return}const idx=state.entries.findIndex(x=>x.id===e.id);if(idx>=0)state.entries[idx]=e;else state.entries.push(e);persist();$('monthPicker').value=e.date.slice(0,7);render();fillForm(e);showToast('Arbeitstag gespeichert.')}
+function resetForm(date=selectedCalendarDate||todayISO()){editingId=null;selectedCalendarDate=date;$('date').value=date;$('start').value='07:00';$('end').value='16:00';$('location').value='';$('task').value='';$('pauseOverride').value='';$('formTitle').textContent='Neuer Tag';$('saveBtn').textContent='Eintrag speichern';$('deleteBtn').classList.add('hidden');updateCalc()}
+function saveEntry(){const selectedDate=$('date').value;const e=readForm();e.date=selectedDate;const c=calc(e);if(!e.date||!c.valid){showToast('Bitte Datum, Beginn und Ende prüfen.');return}if(!e.location||!e.task){showToast('Bitte Ort und Tätigkeit ergänzen.');return}if(c.gross===0){showToast('Beginn und Ende ergeben keine Arbeitszeit.');return}const dup=state.entries.find(x=>x.date===e.date&&x.id!==e.id);if(dup){if(!confirm('Für dieses Datum gibt es schon einen Eintrag. Ersetzen?'))return;state.entries=state.entries.filter(x=>x.id!==dup.id)}const idx=state.entries.findIndex(x=>x.id===e.id);if(idx>=0)state.entries[idx]=e;else state.entries.push(e);persist();$('monthPicker').value=e.date.slice(0,7);render();fillForm(e);showToast('Arbeitstag gespeichert.')}
 function deleteEntry(){if(!editingId)return;state.entries=state.entries.filter(e=>e.id!==editingId);persist();resetForm();render();showToast('Eintrag gelöscht.')}
+//#PARSER-START
+const MONTHS={januar:1,februar:2,'märz':3,maerz:3,april:4,mai:5,juni:6,juli:7,august:8,september:9,oktober:10,november:11,dezember:12};
+const NUMW={'zwölf':12,sieben:7,sechs:6,zehn:10,eins:1,eine:1,zwei:2,drei:3,vier:4,'fünf':5,acht:8,neun:9,elf:11,ein:1};
+const ORDS=['erste','zweite','dritte','vierte','fünfte','sechste','siebte','achte','neunte','zehnte','elfte','zwölfte'];
+const WEEKDAYS=['sonntag','montag','dienstag','mittwoch','donnerstag','freitag','samstag'];
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const isoDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const numOf=s=>{s=String(s).toLowerCase();return NUMW[s]||parseInt(s,10)};
+function parseReport(raw,ctx){
+ let t=' '+raw.replace(/\s*[–—]\s*/g,' bis ').replace(/(\d)\s*-\s*(\d)/g,'$1 bis $2').replace(/\s+/g,' ').trim()+' ';
+ const today=new Date(ctx.today+'T12:00:00');
+ const out={date:ctx.current||ctx.today,dateFound:false,start:'',end:'',location:'',task:''};
+ const cut=m=>{t=t.slice(0,m.index)+' '+t.slice(m.index+m[0].length)};
+ const back=n=>{const d=new Date(today);d.setDate(d.getDate()-n);return d};
+ const noFuture=(d,hasYear)=>{if(!hasYear&&d>today)d.setFullYear(d.getFullYear()-1);return d};
+ let m,d=null;
+ // 1) Datum: gestern/heute, 01.10.2026, "am 1.10", "1. Oktober", "am ersten Oktober", Wochentag
+ if(m=t.match(/\bvorgestern\b/i)){d=back(2);cut(m)}
+ else if(m=t.match(/\bgestern\b/i)){d=back(1);cut(m)}
+ else if(m=t.match(/\bheute\b/i)){d=back(0);cut(m)}
+ if(!d&&(m=t.match(/(?:\bam\s+)?(\d{1,2})[./]\s?(\d{1,2})[./](\d{4}|\d{2})?(?!\d)/i))){const y=m[3]?(m[3].length===2?2000+ +m[3]:+m[3]):today.getFullYear();d=noFuture(new Date(y,m[2]-1,+m[1],12),!!m[3]);cut(m)}
+ if(!d&&(m=t.match(/\bam\s+(\d{1,2})\.(\d{1,2})(?![\d:.])/i))){d=noFuture(new Date(today.getFullYear(),m[2]-1,+m[1],12),false);cut(m)}
+ if(!d&&(m=t.match(new RegExp('(?:\\bam\\s+)?\\b(\\d{1,2}|(?:'+ORDS.join('|')+')[nr]?)\\.?\\s*('+Object.keys(MONTHS).join('|')+')\\b(?:\\s+(\\d{4}))?','i')))){const day=/^\d/.test(m[1])?+m[1]:ORDS.indexOf(m[1].toLowerCase().replace(/[nr]$/,''))+1;d=noFuture(new Date(m[3]?+m[3]:today.getFullYear(),MONTHS[m[2].toLowerCase()]-1,day,12),!!m[3]);cut(m)}
+ if(m=t.match(new RegExp('(?:\\bam\\s+)?\\b('+WEEKDAYS.join('|')+')\\b','i'))){if(!d)d=back((today.getDay()-WEEKDAYS.indexOf(m[1].toLowerCase())+7)%7);cut(m)}
+ if(d&&!isNaN(d)){out.date=isoDate(d);out.dateFound=true}
+ // 2) Uhrzeiten: "von sieben bis halb fünf", "7:00 bis 16:30 Uhr", "7 Uhr 30"
+ const H='(?:\\d{1,2}|'+Object.keys(NUMW).join('|')+')';
+ const T='(?:halb\\s+'+H+'|\\d{1,2}[:.]\\d{2}(?:\\s*uhr)?|'+H+'\\s*uhr(?:\\s+\\d{2})?|'+H+')';
+ const toT=s=>{s=s.toLowerCase().trim();let k;
+  if(k=s.match(/^halb\s+(\S+)$/)){let h=numOf(k[1])-1;if(h<6)h+=12;return[h,30]}
+  if(k=s.match(/^(\d{1,2})[:.](\d{2})/))return[+k[1],+k[2]];
+  if(k=s.match(/^(\S+?)\s*uhr(?:\s+(\d{2}))?$/))return[numOf(k[1]),+(k[2]||0)];
+  return[numOf(s),0]};
+ const fmt=a=>`${String(a[0]).padStart(2,'0')}:${String(a[1]).padStart(2,'0')}`;
+ const ok=a=>a[0]>=0&&a[0]<24&&a[1]>=0&&a[1]<60;
+ const rg=t.match(new RegExp('(?:\\b(?:von|ab)\\s+)?\\b('+T+')\\s+bis\\s+('+T+')\\b','i'));
+ if(rg){const a=toT(rg[1]),b=toT(rg[2]);if(b[0]<12&&b[0]*60+b[1]<=a[0]*60+a[1])b[0]+=12;if(ok(a)&&ok(b)){out.start=fmt(a);out.end=fmt(b);cut(rg)}}
+ if(!out.start){const exRe=new RegExp('halb\\s+'+H+'|\\d{1,2}[:.]\\d{2}(?:\\s*uhr)?|'+H+'\\s*uhr(?:\\s+\\d{2})?','gi');const ex=[...t.matchAll(exRe)];if(ex.length>=2){const a=toT(ex[0][0]),b=toT(ex[1][0]);if(ok(a)&&ok(b)){out.start=fmt(a);out.end=fmt(b);t=t.replace(exRe,' ')}}}
+ // 3) Ort: erst bekannte Orte aus gespeicherten Einträgen, dann "in/bei/nach Ortsname"
+ t=t.replace(/\b(?:heute|gestern|vorgestern|arbeitszeit|gearbeitet)\b/gi,' ').replace(/\s+/g,' ').trim();
+ for(const k of ctx.known||[]){const re=new RegExp('(^|[^\\p{L}])(?:(?:in|bei|auf der baustelle|auf|nach)\\s+)?'+escRe(k)+'(?![\\p{L}])','iu');if(re.test(t)){out.location=k;t=t.replace(re,'$1 ');break}}
+ if(!out.location){const P='(?:[Ii]n|[Bb]ei|[Aa]uf der Baustelle|[Aa]uf|[Nn]ach)';const W='[A-ZÄÖÜ][\\p{L}-]+';
+  const k=t.match(new RegExp('(?:^|\\s)'+P+'\\s+('+W+'(?:\\s+'+W+')*)(?=\\s*(?:,|\\.|;|$))','u'))||t.match(new RegExp('(?:^|\\s)'+P+'\\s+('+W+')','u'));
+  if(k){out.location=k[1];t=t.replace(k[0],' ')}}
+ // 4) Tätigkeit = Rest
+ let segs=t.split(/\s*[,;]\s*/).map(s=>s.trim()).filter(Boolean);
+ if(!out.location&&segs.length>=2&&segs[0].split(' ').length<=3)out.location=segs.shift().replace(/(^|\s)(\p{L})/gu,(a,b,c)=>b+c.toUpperCase());
+ out.task=segs.join(', ').replace(/\s+/g,' ').replace(/^(?:(?:ich\s+)?(?:habe|hab|war)\s+|von\s+|bis\s+|um\s+|ab\s+|und\s+|dann\s+|dort\s+|[.:-]\s*)+/i,'').replace(/[\s.,;:!?-]+$/,'').trim();
+ out.task=out.task.charAt(0).toLocaleUpperCase('de-DE')+out.task.slice(1);
+ return out}
+//#PARSER-END
 function parseSpoken(){
  const raw=$('transcript').value.trim();
  if(!raw){showToast('Bitte erst etwas einsprechen oder eintippen.');return}
- const lower=raw.toLocaleLowerCase('de-DE');
- // Keep the selected form/calendar date unless the text explicitly names another date.
- let date=$('date').value||selectedCalendarDate||todayISO();
- if(/\bgestern\b/.test(lower)){const d=new Date();d.setDate(d.getDate()-1);date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
- else {
-   const namedMonths={januar:1,jan:1,februar:2,feb:2,maerz:3,'märz':3,mar:3,april:4,apr:4,mai:5,juni:6,jun:6,juli:7,jul:7,august:8,aug:8,september:9,sep:9,oktober:10,okt:10,november:11,nov:11,dezember:12,dez:12};
-   const named=lower.match(/\b(?:am\s+)?(\d{1,2})\.?\s+(januar|jan|februar|feb|maerz|märz|mar|april|apr|mai|juni|jun|juli|jul|august|aug|september|sep|oktober|okt|november|nov|dezember|dez)(?:\s+(20\d{2}|\d{2}))?\b/);
-   const numeric=lower.match(/(?:am\s+)?(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?/);
-   if(named){const y=named[3]?(named[3].length===2?'20'+named[3]:named[3]):String(new Date().getFullYear());date=`${y}-${String(namedMonths[named[2]]).padStart(2,'0')}-${String(named[1]).padStart(2,'0')}`}
-   else if(numeric){const y=numeric[3]?(numeric[3].length===2?'20'+numeric[3]:numeric[3]):String(new Date().getFullYear());date=`${y}-${String(numeric[2]).padStart(2,'0')}-${String(numeric[1]).padStart(2,'0')}`}
- }
- // Normalize spoken German time phrases to a stable numeric form.
- let text=lower.replace(/[–—]/g,'-').replace(/\bhalb\s+fünf\b/g,'16:30').replace(/\bhalb\s+vier\b/g,'15:30').replace(/\bhalb\s+drei\b/g,'14:30').replace(/\bhalb\s+sechs\b/g,'17:30').replace(/\bhalb\s+acht\b/g,'07:30').replace(/\bhalb\s+sieben\b/g,'06:30');
- const nums={eins:'1',ein:'1',eine:'1',einen:'1',zwei:'2',drei:'3',vier:'4',fünf:'5',sechs:'6',sieben:'7',acht:'8',neun:'9',zehn:'10',elf:'11',zwölf:'12'};
- // Convert number words globally so ranges such as “sieben bis 18 Uhr” are parseable.
- text=text.replace(/\b(eins|ein|eine|einen|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b/g,(m,n)=>nums[n]);
- text=text.replace(/\b(\d{1,2})\s+uhr\b/g,'$1:00');
- const timeRe=/(?:^|\b)([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?\b/g;
- let times=[];let mt;while((mt=timeRe.exec(text))!==null){const t=`${String(Number(mt[1])).padStart(2,'0')}:${mt[2]||'00'}`;if(!times.some(x=>x===t))times.push(t)}
- // Explicit range has priority; otherwise use the first two distinct times.
- const range=text.match(/(?:von\s*)?([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?\s+bis\s+([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?/);
- if(range){$('start').value=`${String(Number(range[1])).padStart(2,'0')}:${range[2]||'00'}`;$('end').value=`${String(Number(range[3])).padStart(2,'0')}:${range[4]||'00'}`}
- else if(times.length>=2){$('start').value=times[0];$('end').value=times[1]}
- else {showToast('Beginn und Ende nicht sicher erkannt. Bitte Uhrzeiten manuell prüfen.');}
- const taskHints=['pflaster verlegt','pflasterarbeiten','pflastern','rasenpflege','rasen pflege','rasen gemäht','rasenmähen','hecke geschnitten','heckenpflege','hecken pflege','baumpflege','baum pflege','baumschnitt','bäume geschnitten','gartenpflege','garten pflege','kabel verlegt','installation gemacht','reparatur','montiert','baggerarbeiten','erdarbeiten','zaun gebaut','material geholt','baustelle aufgeräumt'];
- // Tätigkeit ist immer der freie Text nach dem letzten Komma.
- // So funktionieren auch bisher unbekannte Begriffe wie Gartenpflege oder Baumpflege.
- const taskSegments=raw.split(',').map(part=>part.trim()).filter(Boolean);
- let taskCandidate='';
- if(taskSegments.length>=3) taskCandidate=taskSegments[taskSegments.length-1];
- else {
-   const cleaned=text.replace(/\bgestern\b|\bheute\b/ig,' ')
-     .replace(/(?:von\s*)?(?:sieben|sechs|acht|neun|zehn|elf|zwölf|vier|fünf|halb\s+(?:drei|vier|fünf|sechs|sieben|acht)|[01]?\d|2[0-3])(?:[:.]\d{2})?\s*(?:uhr)?\s+bis\s+(?:sieben|sechs|acht|neun|zehn|elf|zwölf|vier|fünf|[01]?\d|2[0-3])(?:[:.]\d{2})?\s*(?:uhr)?/ig,' ')
-     .replace(/\b(?:[01]?\d|2[0-3])[:.]\d{2}\s*(?:uhr)?/ig,' ')
-     .replace(/\b(?:von|bis|uhr|in|bei|auf der baustelle|baustelle|am)\b/ig,' ')
-     .replace(/\b\d{1,2}[.\-/]\d{1,2}(?:[.\-/]\d{2,4})?\b/g,' ')
-     .replace(/\s+/g,' ').trim();
-   const loc=$('location').value.trim();
-   taskCandidate=loc?cleaned.replace(new RegExp(loc.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),' ').trim():cleaned;
- }
- taskCandidate=taskCandidate.replace(/^[\s,;:.!?-]+|[\s,;:.!?-]+$/g,'').trim();
- if(taskCandidate){$('task').value=taskCandidate.charAt(0).toLocaleUpperCase('de-DE')+taskCandidate.slice(1)}
- // Remove time/date and task phrases before locating a remaining place name.
- let remainder=text.replace(/\bgestern\b|\bheute\b/g,' ')
-   .replace(/(?:am\s*)?\d{1,2}[.\-/]\d{1,2}(?:[.\-/]\d{2,4})?/g,' ')
-   .replace(/(?:von\s*)?(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:uhr)?\s+bis\s+(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:uhr)?/g,' ')
-   .replace(/\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:uhr)?\b/g,' ')
-   .replace(/\b(?:von|bis|um|uhr|arbeitszeit|gearbeitet|in|bei|nach|auf der baustelle|baustelle)\b/g,' ');
- for(const hint of taskHints) remainder=remainder.replace(new RegExp(hint.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig'),' ');
- remainder=remainder.replace(/[.,;:!?]/g,' , ').replace(/\s+/g,' ').trim();
- let loc='';
- // Prefer explicit place after a location preposition in original input.
- const prep=raw.match(/\b(?:in|bei|nach)\s+([A-ZÄÖÜ][\p{L}-]+(?:\s+[A-ZÄÖÜ][\p{L}-]+){0,2})/u);
- if(prep)loc=prep[1].replace(/\s+(?:und|heute)$/i,'');
- if(!loc){
-   const parts=raw.split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
-   // With date/time, location, task separated by commas, use the middle segment as the location.
-   if(parts.length>=3){
-     const candidate=parts[parts.length-2].replace(/\b(?:von|bis|uhr|heute|gestern|arbeitszeit|gearbeitet|in|bei|nach)\b/ig,' ').replace(/\b\d{1,2}(?::\d{2})?\b/g,' ').replace(/[.!?]/g,' ').replace(/\s+/g,' ').trim();
-     if(candidate && /^[\p{L}-]+(?:\s+[\p{L}-]+){0,2}$/u.test(candidate) && !/^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|sieben|acht|neun|zehn)$/i.test(candidate)) loc=candidate.split(/\s+/).map(w=>w.charAt(0).toLocaleUpperCase('de-DE')+w.slice(1)).join(' ');
-   }
-   for(const part of (loc?[]:parts)){
-     let clean=part.toLocaleLowerCase('de-DE').replace(/\b(?:von|bis|uhr|heute|gestern|arbeitszeit|gearbeitet|in|bei|nach)\b/g,' ').replace(/\b\d{1,2}(?::\d{2})?\b/g,' ').replace(/[.!?]/g,' ').replace(/\s+/g,' ').trim();
-     for(const hint of taskHints)clean=clean.replace(new RegExp(hint.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig'),' ').replace(/\s+/g,' ').trim();
-     if(/^[a-zäöüß-]+(?:\s+[a-zäöüß-]+){0,2}$/i.test(clean)&&clean&&!/^(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|heute|gestern|sieben|acht|neun|zehn)$/i.test(clean)){loc=clean.split(/\s+/).map(w=>w.charAt(0).toLocaleUpperCase('de-DE')+w.slice(1)).join(' ');break}
-   }
- }
- if(loc)$('location').value=loc;
- $('date').value=date;selectedCalendarDate=date;$('monthPicker').value=date.slice(0,7);$('transcript').value=raw;renderCalendar();updateCalc();showToast('Text ausgewertet – bitte erkannte Angaben kontrollieren.');
+ const known=[...new Set(state.entries.map(e=>e.location).filter(Boolean))].sort((a,b)=>b.length-a.length);
+ const r=parseReport(raw,{today:todayISO(),current:$('date').value||todayISO(),known});
+ $('date').value=r.date;selectedCalendarDate=r.date;$('monthPicker').value=r.date.slice(0,7);
+ // Gehört das Datum schon zu einem Eintrag? Dann diesen bearbeiten, sonst neuen Eintrag anlegen (nie den zuletzt bearbeiteten Tag überschreiben).
+ const found=state.entries.find(e=>e.date===r.date);editingId=found?found.id:null;
+ $('formTitle').textContent=found?'Eintrag bearbeiten':'Neuer Tag';$('saveBtn').textContent=found?'Änderungen speichern':'Eintrag speichern';$('deleteBtn').classList.toggle('hidden',!found);
+ if(r.start&&r.end){$('start').value=r.start;$('end').value=r.end}
+ if(r.location)$('location').value=r.location;
+ if(r.task)$('task').value=r.task;
+ $('pauseOverride').value=found&&found.pauseOverride!=null?String(found.pauseOverride):'';
+ updateCalc();render();
+ const miss=[!r.start&&'Zeiten',!r.location&&'Ort',!r.task&&'Tätigkeit'].filter(Boolean);
+ showToast(`Datum: ${formatDate(r.date)}${r.dateFound?'':' (nicht genannt)'}${found?' · vorhandener Eintrag':''}${miss.length?' · nicht erkannt: '+miss.join(', '):''}`);
 }
 function startVoice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$('voiceStatus').textContent='Bitte iPhone-Tastatur-Diktat nutzen';$('voiceHint').textContent='Tippe ins Textfeld und dann auf das Mikrofon unten auf der iPhone-Tastatur. Die direkte Mikrofonfunktion wird von diesem Browser nicht unterstützt.';$('transcript').focus();showToast('Direkte Spracheingabe nicht verfügbar. Nutze das Mikrofon der iPhone-Tastatur.');return}if(recognition){try{recognition.stop()}catch(e){}return}recognition=new SR();recognition.lang='de-DE';recognition.interimResults=true;recognition.continuous=false;$('micBtn').classList.add('listening');$('micBtn').textContent='■ Aufnahme stoppen';$('voiceStatus').textContent='Direkte Spracheingabe läuft …';let result='';recognition.onresult=e=>{result=Array.from(e.results).map(r=>r[0].transcript).join(' ');$('transcript').value=result};recognition.onerror=e=>{const msg=e&&e.error==='not-allowed'?'Mikrofonzugriff verweigert. Bitte nutze das iPhone-Tastatur-Mikrofon.':'Mikrofon nicht verfügbar. Bitte nutze das iPhone-Tastatur-Mikrofon.';$('voiceStatus').textContent='Diktat über die Tastatur empfohlen';$('voiceHint').textContent=msg;showToast(msg)};recognition.onend=()=>{$('micBtn').classList.remove('listening');$('micBtn').textContent='🎙 Direkt sprechen';$('voiceStatus').textContent=result?'Diktat aufgenommen – Angaben übernehmen':'Feierabendbericht diktieren';recognition=null;if(result){$('transcript').value=result;$('transcript').focus()}};try{recognition.start()}catch(e){recognition=null;$('micBtn').classList.remove('listening');$('micBtn').textContent='🎙 Direkt sprechen';$('voiceStatus').textContent='Bitte iPhone-Tastatur-Diktat nutzen';showToast('Mikrofon konnte nicht gestartet werden. Nutze das Tastatur-Mikrofon.')}}
 function openSettings(){const s=state.settings;$('settingTarget').value=s.targetHours;$('settingThreshold1').value=s.threshold1;$('settingBreak1').value=s.break1;$('settingThreshold2').value=s.threshold2;$('settingBreak2').value=s.break2;$('settingsDialog').showModal()}
