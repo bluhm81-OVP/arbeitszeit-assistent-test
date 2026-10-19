@@ -53,3 +53,16 @@ textarea,.form-card input,.settings input,dialog input{background:#141c18;color:
 .positive{color:#6fcf9f}.negative{color:#e88a8a}
 .remind{background:#2c241c;border-color:#5a4630;color:#f0b98a}.pause-value,.calc-row strong{color:#6fcf9f}
 }
+
+/* v0.13 Urlaub, Feiertag, Krank */
+.type-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:14px}
+.type-row button{border:1px solid var(--line);background:#f0f3f0;color:#49574e;border-radius:11px;padding:11px 2px;font-weight:700;font-size:13px;min-height:44px}
+.type-row button.active{background:var(--green);color:#fff;border-color:var(--green)}
+.type-row button[data-type=vacation].active{background:#2b6cb0;border-color:#2b6cb0}.type-row button[data-type=holiday].active{background:var(--red);border-color:var(--red)}.type-row button[data-type=sick].active{background:#8a5a9e;border-color:#8a5a9e}
+.calendar-day.abs-vacation{background:#e6f0fa;border-color:#bcd5ee}.calendar-day.abs-holiday{background:#fdf1f1;border-color:#efd5d5}.calendar-day.abs-sick{background:#f3eaf7;border-color:#dcc8e6}
+.calendar-day.abs .day-hours{font-size:8px;white-space:nowrap}
+.badge{display:inline-block;padding:3px 9px;border-radius:9px;font-size:12px;font-weight:750}
+.badge-vacation{background:#e6f0fa;color:#2b6cb0}.badge-holiday{background:#fdf1f1;color:var(--red)}.badge-sick{background:#f3eaf7;color:#8a5a9e}
+.abs-summary{font-size:12px;margin:-4px 2px 10px}
+.legend-dot.vacation{background:#2b6cb0}.legend-dot.sick{background:#8a5a9e}
+@media screen and (prefers-color-scheme:dark){.type-row button{background:#26332c;color:#cfd9d2;border-color:#2f3d35}.type-row button.active{color:#fff}.calendar-day.abs-vacation{background:#1e3247;border-color:#2f4d6c}.calendar-day.abs-holiday{background:#2e1d1d;border-color:#5a3030}.calendar-day.abs-sick{background:#2d2236;border-color:#4d3a5c}.badge-vacation{background:#1e3247;color:#8ec0f0}.badge-holiday{background:#2e1d1d;color:#e88a8a}.badge-sick{background:#2d2236;color:#caa0dc}}
