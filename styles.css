@@ -109,3 +109,13 @@ dialog{background:#1a241f!important}
 dialog input:not([type=file]),dialog select{background:#fff!important;color:#000!important;-webkit-text-fill-color:#000!important}
 }
 @media screen and (prefers-color-scheme:light){dialog input::placeholder{color:#6b756f!important;-webkit-text-fill-color:#6b756f!important}}
+
+/* v0.19 Überstunden frei */
+.type-row{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.type-row button{font-size:12px;padding:11px 0}
+.type-row button[data-type=overtime].active{background:#b7662a;border-color:#b7662a}
+.calendar-day.abs-overtime{background:#fdf3e8;border-color:#efd5b8}
+.badge-overtime{background:#fdf3e8;color:#b7662a}
+.legend-dot.overtime{background:#b7662a}
+.form-card .overtime-only{grid-column:1/-1}
+@media screen and (prefers-color-scheme:dark){.calendar-day.abs-overtime{background:#352a1c;border-color:#5f4a2c}.badge-overtime{background:#352a1c;color:#f0b98a}}
+.pause-box.hidden,.work-only.hidden,.overtime-only.hidden,.absence-only.hidden{display:none!important}
